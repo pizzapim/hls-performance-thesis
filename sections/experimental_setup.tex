@@ -1,0 +1,27 @@
+\section{Experimental setup} \label{section:experiment_setup}
+We investigate the performance of the FPGA implementation based on two metrics found in literature.
+To evaluate the overall performance, throughput is measured by counting how many patterns can be matched (finding their indices) per second.
+As one of the main benefits of FPGAs is energy efficiency, we also evaluate this by measuring the average energy usage for matching one pattern.
+
+As test data, we use several corpora from the Pizza \& Chili corpus collection \cite{ferragina_pizzachili_nodate}, preprocessed on the CPU.
+This collection is often used for text compression and indexing, and features corpora from multiple sources, such as protein sequences, program source codes and DNA sequences \cite{makinen_compressed_2007}.
+For each corpus we also evaluate a few text sizes.
+
+As input data, we take an amount of substrings found in the original string that are matched using the preprocessed FM-index.
+Different lengths of the patterns are be investigated.
+The amount of patterns is fixed, as we are interested in the throughput and average energy consumption.
+However, the amount of patterns should be big enough to exploit parallelization on the FPGA.
+
+For big texts, we will use the technique described in \ref{section:bwt_construction} to reduce the size of the rank matrix and suffix array.
+
+In terms of hardware we will use the Xilinx U250 Data Center Accelerator Card as the FPGA.
+The CPU is to be determined.
+
+We expect that the FPGA implementation will have a higher throughput, as there is potential for high paralellization.
+We also expect the FPGA implementation to be more energy efficient, as is usually the case.
+
+[TODO: show which corpora we actually use and information about them]
+
+[TODO: explain comparison]
+
+[TODO: CPU hardware summary]

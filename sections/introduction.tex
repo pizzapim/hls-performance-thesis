@@ -1,0 +1,31 @@
+\section{Introduction} \label{section:introduction}
+
+A Field-Programmable Gate Array (FPGA) is a device with circuits that can be reprogrammed after manufacturing.
+In terms of performance and reconfigurability, FPGAs offer a good trade-off between CPUs and ASICs:
+a CPU is often slower, but can be instructed to do anything, while the specialized ASICs are much faster \cite{zohouri_evaluating_2016}.
+Another great benefit of FPGAs is the low power consumption in comparison to CPUs.
+
+Traditionally, FPGAs are programmed using low-level Hardware Description Languages\linebreak(HDL) that describe the circuits needed to run an algorithm.
+Unlike sequential programming languages like C or python, HDLs use a concurrent model where data flow is done in parallel \cite{zohouri_evaluating_2016}.
+Because of the difference in programming paradigms, many computer programmers experience difficulty programming with HDLs.
+
+To alleviate this problem, past research has focussed on High-Level Synthesis (HLS) which aims to synthesize more high-level programming languages and models like C, Haskell or OpenCL into programs that run on FPGAs \cite{paulino_optimizing_2020}.
+While programming FPGAs using high-level models is convenient and accessible, it can be challenging to efficiently synthesize algorithms.
+
+In this project we focus on analyzing the performance of FPGAs algorithms developed using HLS.
+
+\section{Research Question} \label{section:research_question}
+
+The goal of this work is to analyze the performance of HLS for FPGAs.
+To this end, we formulate the following research question:
+
+\textit{How does high-level synthesis affect performance of an algorithm running on an FPGA?}
+
+\section{Outline} \label{section:outline}
+
+The thesis is organized as follows.
+Chapter \ref{chapter:background_related} discusses theorethical background regarding FPGAs and the chosen algorithm for performance analysis, as well as related work.
+In chapter \ref{chapter:cpu}, we present our CPU reference implementation and an experimental setup.
+In chapter \ref{chapter:fpga}, we present our reference implementation on an FPGA and perform an empirical evaluation of its performance.
+Chapter \ref{chapter:optimizations} discusses optimizations on the FPGA reference implementation as well as an empirical evaluation.
+Lastly, chapter \ref{chapter:conclusion} we answers the research question and presents possible future work.

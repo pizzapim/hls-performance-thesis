@@ -1,0 +1,66 @@
+In this chapter, we present our FPGA implementation of the FM-index algorithm, and present an experimental setup to compare performance against a reference implemenation.
+
+\section{Reference implementation} \label{section:ref_impl}
+
+To analyze the performance of an FPGA implementation, we have programmed a CPU-based reference implementation in the C language.
+We have chosen this language for its performance and for easy portability to an FPGA kernel in C, C++ or OpenCL.
+As will be explained in section \ref{section:experiment_setup}, we will analyze the performance of string-matching.
+Therefore we can precalculate all auxiliary data structures that were previously explained in section \ref{section:background_stringmatching}.
+
+\subsection{Burrows-Wheeler transform construction} \label{section:bwt_construction}
+
+The method to obtain the Burrows-Wheeler transform $\Tbw$ from a text can however not be used in practice.
+We previously explained in section \ref{section:background_bwt} that, to obtain $\Tbw$, we list all rotations of the text and then lexicographically sort them.
+This would unfortunately load to a space complexity of $O(n^2)$ which is infeasible for large data sets.
+To avoid this issue, we can derive $\Tbw$ from the suffix array of the text \cite{ullah_implementation_2020}.
+The suffix array is essentially a Burrows-Wheeler transform, but holds indices instead of characters.
+Deriving $\Tbw$ is therefore as easy as indexing the text for each index in the suffix array.
+
+The C code for obtaining the suffix array from a text is shown in listing \ref{listing:construct_sa}.
+First we simply list all indices of the text.
+Then we use quicksort to sort the indices: for each pair of indices, the strings starting from these positions are lexicographically compaired.
+
+\begin{listing}[ht]
+\begin{minted}{c}
+sa_t *ConstructSuffixArray(char *text, size_t text_sz) {
+  sa_t *suffix_array = calloc(text_sz + 1, sizeof(sa_t));
+
+  for (size_t i = 0; i < text_sz + 1; ++i)
+    suffix_array[i] = i;
+
+  qsort_r(suffix_array, text_sz + 1, sizeof(sa_t), &CompareSuffixArray, text);
+
+  return suffix_array;
+}
+\end{minted}
+\caption{Generating the suffix array for a text.}
+\label{listing:construct_sa}
+\end{listing}
+
+\subsection{Space reduction} \label{section:space_reduction}
+
+Another concern is the storage usage of the resulting index.
+Consider an ASCII text file of 3 gigabyte with alphabet size 27 (meaning 27 distinct characters).
+The reference implementation uses an \mintinline{c}{unsigned int} to store the numbers in the rank matrix and the suffix array, which takes up two bytes in the testing environment.
+The resulting storage usage of the index is divided as follows:
+
+\begin{itemize}
+  \item \textbf{Burrows-Wheeler transform}: \SI{3}{GB}
+  \item \textbf{Rank matrix}: $2 \cdot 27 \cdot \SI{3}{GB} = \SI{162}{GB}$
+  \item \textbf{Suffix array}: $2 \cdot \SI{3}{GB} = \SI{6}{GB}$
+  \item \textbf{Resulting storage usage}: $3 + 162 + \SI{6}{GB} = \SI{171}{GB}$
+\end{itemize}
+
+It is clear that that the resulting \SI{171}{GB} of storage usage is unaccaptable when it is loaded into memory.
+Therefore, we should reduce the storage usage of the rank matrix and suffix array.
+Our reference implemention only stores every $n$ rows of the rank matrix and suffix array \cite{fernandez_string_2011,langmead_introduction_nodate}.
+The rank matrix and suffix array can then be reduced as needed.
+At run time, the missing rows can be calculated on the fly, which can be done in constant time.
+
+[TODO: explain how we reduce the number of rows?]
+
+
+
+\section{FPGA implementation} \label{section:fpga_impl}
+
+[TODO: explain how we adapted the reference implementation to OpenCL]

@@ -1,0 +1,9 @@
+host
+sw_emu
+hw_emu
+hw
+.Xil
+.run
+emconfig.json
+*.csv
+*run_summary
