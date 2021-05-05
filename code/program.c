@@ -19,7 +19,7 @@ int main() {
   printf("BWT: \"%s\"\n", index->bwt);
 
   ranges_t start, end;
-  FMIndexFindMatchRange(index, pattern, &start, &end);
+  FMIndexFindMatchRange(index, pattern, strlen(pattern), &start, &end);
   unsigned long match_count = end - start;
   unsigned long *match_indices = calloc(match_count, sizeof(unsigned long));
   FMIndexFindRangeIndices(index, start, end, &match_indices);

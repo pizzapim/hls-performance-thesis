@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 // https://stackoverflow.com/questions/2029103/#2029227
 char *ReadFile(char *filename) {
@@ -45,4 +46,46 @@ char *ReadFile(char *filename) {
 // https://stackoverflow.com/questions/1202687/18386648#18386648
 int randomrange(int min, int max) {
   return min + rand() / (RAND_MAX / (max - min + 1) + 1);
+}
+
+int LoadTestData(char *filename, char **tests, unsigned *pattern_count,
+                 unsigned *pattern_sz, unsigned *max_match_count) {
+  FILE *fp;
+  char *line = NULL;
+  size_t len = 0;
+  ssize_t read;
+
+  if (!(fp = fopen(filename, "r")))
+    return 0;
+
+  // Read max match count.
+  if ((read = getline(&line, &len, fp)) == -1)
+    return 0;
+  *max_match_count = atoi(line);
+
+  // Read test count.
+  if ((read = getline(&line, &len, fp)) == -1)
+    return 0;
+  *pattern_count = atoi(line);
+
+  // Read test length.
+  if ((read = getline(&line, &len, fp)) == -1)
+    return 0;
+  *pattern_sz = atoi(line);
+
+  *tests = (char *)calloc(*pattern_count * *pattern_sz, sizeof(char));
+  if (!*tests)
+    return 0;
+
+  // Read each test on a seperate line.
+  for (unsigned i = 0; i < *pattern_count; ++i) {
+    if ((read = getline(&line, &len, fp)) == -1)
+      return 0;
+    memcpy(&(*tests)[i * *pattern_sz], line, *pattern_sz);
+  }
+
+  fclose(fp);
+  free(line);
+
+  return 1;
 }

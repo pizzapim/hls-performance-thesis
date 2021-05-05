@@ -1,9 +1,6 @@
-SA_JUMPS ?= 1
-RANK_JUMPS ?= 1
-
 CC=gcc
 CPPC=g++
-CFLAGS=-I. -Wextra -Wall -g -DSA_JUMPS=$(SA_JUMPS) -DRANK_JUMPS=$(RANK_JUMPS)
+CFLAGS=-I. -Wextra -Wall -g
 DEPS = fmindex.h util.h
 OBJ = fmindex.o util.o
 EXES = program repl construct generate_test_data benchmark

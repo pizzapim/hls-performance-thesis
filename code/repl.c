@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
     input[strlen(input) - 1] = '\0';
 
     ranges_t start, end;
-    FMIndexFindMatchRange(index, input, &start, &end);
+    FMIndexFindMatchRange(index, input, strlen(input), &start, &end);
     unsigned long match_count = end - start;
     unsigned long *match_indices = calloc(match_count, sizeof(unsigned long));
     FMIndexFindRangeIndices(index, start, end, &match_indices);

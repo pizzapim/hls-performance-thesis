@@ -1,0 +1,5 @@
+CPU benchmark command:
+python3 benchmark_cpu.py -n 5 -c 50000 -l 4 6 8 -d experiment_data -f dna.150MB proteins.150MB dblp.xml.150MB
+
+CPU benchmark figure command:
+python3 make_plot.py -c 50000 -l 4 6 8 -d experiment_results -t dna proteins dblp.xml -s 50 100 150

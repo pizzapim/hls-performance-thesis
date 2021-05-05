@@ -86,26 +86,6 @@ sa_t *ConstructSuffixArray(char *s, size_t sz) {
   return suffix_array;
 }
 
-/* Reduce the size of the given suffix array by only saving
- *  every SA_JUMPS entry.
- * A new array is allocated and the old suffix array is freed.
- * Return NULL on memory allocation error.
- */
-sa_t *ReduceSuffixArray(sa_t *sa, size_t sz) {
-  size_t reduced_sz = (sz - 1) / SA_JUMPS + 1;
-
-  sa_t *reduced_sa = calloc(reduced_sz, sizeof(sa_t));
-  if (!reduced_sa)
-    goto cleanup;
-
-  for (size_t i = 0; i * SA_JUMPS < sz; ++i)
-    reduced_sa[i] = sa[i * SA_JUMPS];
-
-cleanup:
-  free(sa);
-  return reduced_sa;
-}
-
 /* Construct the Burrows-Wheeler transform of the given string,
  *  using the corresponding suffix array.
  * Return NULL on memory allocation error.
@@ -132,9 +112,8 @@ char *ConstructBWT(char *s, size_t sz, sa_t *suffix_array) {
  */
 ranks_t *ConstructRankMatrix(char *bwt, size_t sz, char *alphabet) {
   size_t alphabet_sz = strlen(alphabet);
-  size_t reduced_sz = ((sz - 1) / RANK_JUMPS + 1) * alphabet_sz;
 
-  ranks_t *rank_matrix = calloc(reduced_sz, sizeof(ranks_t));
+  ranks_t *rank_matrix = calloc(sz * alphabet_sz, sizeof(ranks_t));
   if (!rank_matrix) {
     printf("Failed to allocate %lu bytes.\n", sz * alphabet_sz);
     return NULL;
@@ -142,22 +121,22 @@ ranks_t *ConstructRankMatrix(char *bwt, size_t sz, char *alphabet) {
 
   ranks_t acc[alphabet_sz];
 
+  // Initialize counts with zero.
   for (size_t i = 0; i < alphabet_sz; ++i)
     acc[i] = 0;
 
   for (size_t i = 0; i < sz; ++i) {
     char c = bwt[i];
+
+    // Update accumulator.
     for (unsigned j = 0; j < alphabet_sz; ++j)
       if (c == alphabet[j]) {
         ++acc[j];
         break;
       }
 
-    if (i % RANK_JUMPS == 0) {
-      for (unsigned j = 0; j < alphabet_sz; ++j) {
-        rank_matrix[(i / RANK_JUMPS) * alphabet_sz + j] = acc[j];
-      }
-    }
+    for (unsigned j = 0; j < alphabet_sz; ++j)
+      rank_matrix[i * alphabet_sz + j] = acc[j];
   }
 
   return rank_matrix;
@@ -203,60 +182,12 @@ ranges_t *ConstructCharacterRanges(char *bwt, size_t sz, char *alphabet) {
   return ranges;
 }
 
-/* If the rank matrix is reduced to save memory, find the nearest entry that is
- *  available and calculate the rank by moving at most RANK_JUMPS times.
- * When the matrix is not reduced, simply do a array lookup.
- */
-#if RANK_JUMPS == 1
-#define LookupRank(bwt, sz, rank_matrix, alphabet, alphabet_sz, row, col)      \
-  (rank_matrix)[(alphabet_sz) * (row) + (col)]
-#else
-static ranks_t LookupRank(char *bwt, size_t sz, ranks_t *rank_matrix,
-                          char *alphabet, size_t alphabet_sz, unsigned long row,
-                          unsigned long col) {
-  char target = alphabet[col];
-  unsigned long count = 0;
-  unsigned long nearest = (row / RANK_JUMPS) * RANK_JUMPS;
-  unsigned long cur_row;
-  int increment;
-  if (row % RANK_JUMPS > RANK_JUMPS / 2 && nearest + RANK_JUMPS < sz) {
-    // There is an available row below us, move down.
-    increment = 1;
-    nearest += RANK_JUMPS;
-    cur_row = row + 1;
-    while (cur_row % RANK_JUMPS != 0) {
-      if (bwt[cur_row] == target)
-        ++count;
-
-      ++cur_row;
-    }
-
-    if (bwt[cur_row] == target)
-      ++count;
-  } else {
-    // There is an available row above us, move up.
-    increment = -1;
-    cur_row = row;
-    while (cur_row % RANK_JUMPS != 0) {
-      if (bwt[cur_row] == target)
-        ++count;
-
-      --cur_row;
-    }
-  }
-
-  // Subtract or add the number of characters found while moving.
-  return rank_matrix[(nearest / RANK_JUMPS) * alphabet_sz + col] +
-         count * -increment;
-}
-#endif // RANK_JUMPS == 1
-
 /* Find the range of matches for the given pattern in the F column of the
  *  given FM-index.
  */
-void FMIndexFindMatchRange(fm_index *fm, char *pattern, ranges_t *start,
-                           ranges_t *end) {
-  int p_idx = strlen(pattern) - 1;
+void FMIndexFindMatchRange(fm_index *fm, char *pattern, size_t pattern_sz,
+                           ranges_t *start, ranges_t *end) {
+  int p_idx = pattern_sz - 1;
   char c = pattern[p_idx];
   // Initial range is all instances of the last character in pattern.
   *start = fm->ranges[2 * string_index(fm->alphabet, c)];
@@ -268,43 +199,19 @@ void FMIndexFindMatchRange(fm_index *fm, char *pattern, ranges_t *start,
     ranges_t range_start = fm->ranges[2 * string_index(fm->alphabet, c)];
     int alphabet_idx = string_index(fm->alphabet, c);
     *start =
-        range_start + LookupRank(fm->bwt, fm->bwt_sz, fm->ranks, fm->alphabet,
-                                 fm->alphabet_sz, *start - 1, alphabet_idx);
-    *end =
-        range_start + LookupRank(fm->bwt, fm->bwt_sz, fm->ranks, fm->alphabet,
-                                 fm->alphabet_sz, *end - 1, alphabet_idx);
+        range_start + fm->ranks[fm->alphabet_sz * (*start - 1) + alphabet_idx];
+    *end = range_start + fm->ranks[fm->alphabet_sz * (*end - 1) + alphabet_idx];
     p_idx -= 1;
   }
 }
 
-/* Find the indices of the given range of characters in the F column of the
- * given FM-index.
- * Make use of the reduced suffix array, which has only has 1/SA_JUMPS rows.
- * When requesting an index which is not saved in the suffix array,
- *  we jump one character to the left using the LF-mapping until we do.
- * Afterwards, add the number of jumps to the resulting index.
+/* Find the matching indices in the original text for the given
+ *  range in the "F column" of the Burrows-Wheeler matrix.
  */
 void FMIndexFindRangeIndices(fm_index *fm, ranges_t start, ranges_t end,
                              unsigned long **match_indices) {
-  for (unsigned long i = 0; i < end - start; ++i) {
-#if SA_JUMPS != 1
-    unsigned long idx = start + i;
-    unsigned jumps = 0;
-
-    // Jump to the left until we find a row in the suffix array.
-    while (idx % SA_JUMPS != 0) {
-      int alphabet_idx = string_index(fm->alphabet, fm->bwt[idx]);
-      ranges_t range_start = fm->ranges[2 * alphabet_idx];
-      idx =
-          range_start + LookupRank(fm->bwt, fm->bwt_sz, fm->ranks, fm->alphabet,
-                                   fm->alphabet_sz, idx - 1, alphabet_idx);
-      jumps++;
-    }
-    (*match_indices)[i] = (fm->sa[idx / SA_JUMPS] + jumps) % fm->bwt_sz;
-#else
+  for (unsigned long i = 0; i < end - start; ++i)
     (*match_indices)[i] = fm->sa[start + i];
-#endif // SA_JUMPS != 1
-  }
 }
 
 fm_index *FMIndexConstruct(char *s) {
@@ -323,8 +230,6 @@ fm_index *FMIndexConstruct(char *s) {
     goto error;
   ++sz; // Because of the added dollar sign.
   index->bwt_sz = sz;
-  if (!(index->sa = ReduceSuffixArray(index->sa, sz)))
-    goto error;
   if (!(index->ranks = ConstructRankMatrix(index->bwt, sz, index->alphabet)))
     goto error;
   if (!(index->ranges =
@@ -368,9 +273,8 @@ int FMIndexDumpToFile(fm_index *index, char *filename) {
   fwrite(&index->alphabet_sz, sizeof(index->alphabet_sz), 1, f);
   fwrite(index->alphabet, sizeof(char), index->alphabet_sz, f);
   fwrite(index->ranges, sizeof(ranges_t), 2 * index->alphabet_sz, f);
-  fwrite(index->ranks, sizeof(ranks_t),
-         ((index->bwt_sz - 1) / RANK_JUMPS + 1) * index->alphabet_sz, f);
-  fwrite(index->sa, sizeof(sa_t), (index->bwt_sz - 1) / SA_JUMPS + 1, f);
+  fwrite(index->ranks, sizeof(ranks_t), index->bwt_sz * index->alphabet_sz, f);
+  fwrite(index->sa, sizeof(sa_t), index->bwt_sz, f);
 
   fclose(f);
   return 1;
@@ -410,19 +314,20 @@ fm_index *FMIndexReadFromFile(char *filename, int aligned) {
   index->alphabet[index->alphabet_sz] = '\0';
 
   if (!MaybeMallocAligned((void **)&index->ranges,
-                          FMINDEXRANGESSZ(index) * sizeof(ranges_t), aligned))
+                          2 * index->alphabet_sz * sizeof(ranges_t), aligned))
     goto error;
-  fread(index->ranges, sizeof(ranges_t), FMINDEXRANGESSZ(index), f);
+  fread(index->ranges, sizeof(ranges_t), 2 * index->alphabet_sz, f);
 
   if (!MaybeMallocAligned((void **)&index->ranks,
-                          FMINDEXRANKSSZ(index) * sizeof(ranks_t), aligned))
+                          index->bwt_sz * index->alphabet_sz * sizeof(ranks_t),
+                          aligned))
     goto error;
-  fread(index->ranks, sizeof(ranks_t), FMINDEXRANKSSZ(index), f);
+  fread(index->ranks, sizeof(ranks_t), index->bwt_sz * index->alphabet_sz, f);
 
-  if (!MaybeMallocAligned((void **)&index->sa,
-                          FMINDEXSASZ(index) * sizeof(sa_t), aligned))
+  if (!MaybeMallocAligned((void **)&index->sa, index->bwt_sz * sizeof(sa_t),
+                          aligned))
     goto error;
-  fread(index->sa, sizeof(sa_t), FMINDEXSASZ(index), f);
+  fread(index->sa, sizeof(sa_t), index->bwt_sz, f);
 
   fclose(f);
   return index;

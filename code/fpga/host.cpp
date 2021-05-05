@@ -33,10 +33,12 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <fstream>
 #include <iostream>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 #include <vector>
 
 #include "../fmindex.h"
+#include "../util.h"
 
 // Forward declaration of utility functions included at the end of this file
 std::vector<cl::Device> get_xilinx_devices();
@@ -46,14 +48,24 @@ char *read_binary_file(const std::string &xclbin_file_name, unsigned &nb);
 // Main program
 // ------------------------------------------------------------------------------------
 int main(int argc, char **argv) {
-  if (argc < 2) {
-    printf("Usage: %s <FMINDEXFILE> <XCLBIN>\n", argv[0]);
+  if (argc < 4) {
+    printf("Usage: %s <FMINDEXFILE> <XCLBIN> <TESTFILE>\n", argv[0]);
     return 1;
   }
 
+  // Read FM-index from file.
   fm_index *index = FMIndexReadFromFile(argv[1], 1);
   if (!index) {
     printf("Could not read FM-index from file.\n");
+    return 1;
+  }
+
+  unsigned pattern_count, pattern_sz, max_match_count;
+  char *patterns;
+
+  if (!(LoadTestData(argv[3], &patterns, &pattern_count, &pattern_sz,
+                     &max_match_count))) {
+    printf("Could not read test data file.\n");
     return 1;
   }
 
@@ -78,20 +90,25 @@ int main(int argc, char **argv) {
   // Step 2: Create buffers and initialize test values
   // ------------------------------------------------------------------------------------
   // Create the buffers and allocate memory
-  cl::Buffer bwt_buf(context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+  cl::Buffer bwt_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
                      sizeof(char) * index->bwt_sz, index->bwt, &err);
-  cl::Buffer alphabet_buf(context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
+  cl::Buffer alphabet_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
                           sizeof(char) * index->alphabet_sz, index->alphabet,
                           &err);
-  cl::Buffer ranks_buf(context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
-                       sizeof(ranks_t) * FMINDEXRANKSSZ(index), index->ranks,
-                       &err);
-  cl::Buffer sa_buf(context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
-                    sizeof(sa_t) * FMINDEXSASZ(index), index->sa, &err);
-  cl::Buffer ranges_buf(context, CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR,
-                        sizeof(ranges_t) * FMINDEXRANGESSZ(index),
+  cl::Buffer ranks_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+                       sizeof(ranks_t) * index->bwt_sz * index->alphabet_sz,
+                       index->ranks, &err);
+  cl::Buffer sa_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+                    sizeof(sa_t) * index->bwt_sz, index->sa, &err);
+  cl::Buffer ranges_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+                        sizeof(ranges_t) * 2 * index->alphabet_sz,
                         index->ranges, &err);
-  cl::Buffer out_buf(context, CL_MEM_READ_ONLY, sizeof(size_t), NULL, &err);
+  cl::Buffer patterns_buf(context, CL_MEM_READ_ONLY | CL_MEM_USE_HOST_PTR,
+                          sizeof(char) * pattern_count * pattern_sz, patterns,
+                          &err);
+  cl::Buffer out_buf(context, CL_MEM_WRITE_ONLY,
+                     sizeof(unsigned long) * max_match_count * pattern_count,
+                     NULL, &err);
 
   // Map buffers to kernel arguments, thereby assigning them to specific device
   // memory banks
@@ -100,11 +117,13 @@ int main(int argc, char **argv) {
   krnl_fmindex.setArg(2, ranks_buf);
   krnl_fmindex.setArg(3, sa_buf);
   krnl_fmindex.setArg(4, ranges_buf);
-  krnl_fmindex.setArg(7, out_buf);
+  krnl_fmindex.setArg(5, patterns_buf);
+  krnl_fmindex.setArg(6, out_buf);
 
   // Map host-side buffer memory to user-space pointers
-  size_t *out = (size_t *)q.enqueueMapBuffer(out_buf, CL_TRUE, CL_MAP_READ, 0,
-                                             sizeof(size_t));
+  size_t *out = (size_t *)q.enqueueMapBuffer(
+      out_buf, CL_TRUE, CL_MAP_READ, 0,
+      sizeof(unsigned long) * pattern_count * max_match_count);
 
   // ------------------------------------------------------------------------------------
   // Step 3: Run the kernel
@@ -116,25 +135,33 @@ int main(int argc, char **argv) {
   krnl_fmindex.setArg(2, ranks_buf);
   krnl_fmindex.setArg(3, sa_buf);
   krnl_fmindex.setArg(4, ranges_buf);
-  krnl_fmindex.setArg(5, index->bwt_sz);
-  krnl_fmindex.setArg(6, index->alphabet_sz);
-  krnl_fmindex.setArg(7, out_buf);
+  krnl_fmindex.setArg(5, patterns_buf);
+  krnl_fmindex.setArg(6, out_buf);
+  krnl_fmindex.setArg(7, index->bwt_sz);
+  krnl_fmindex.setArg(8, index->alphabet_sz);
+  krnl_fmindex.setArg(9, pattern_count);
+  krnl_fmindex.setArg(10, pattern_sz);
+  krnl_fmindex.setArg(11, max_match_count);
 
   // Schedule transfer of inputs to device memory, execution of kernel, and
   // transfer of outputs back to host memory
-  q.enqueueMigrateMemObjects({bwt_buf}, 0 /* 0 means from host*/);
+  q.enqueueMigrateMemObjects(
+      {bwt_buf, alphabet_buf, ranks_buf, sa_buf, ranges_buf, patterns_buf}, 0);
   q.enqueueTask(krnl_fmindex);
   q.enqueueMigrateMemObjects({out_buf}, CL_MIGRATE_MEM_OBJECT_HOST);
 
   // Wait for all scheduled operations to finish
   q.finish();
 
-  ranges_t begin, end;
-  FMIndexFindMatchRange(index, "bee", &begin, &end);
-  size_t match_count = (end >= begin) ? end - begin : 0;
-
-  std::cout << "FPGA: Number of matches: " << out[0] << std::endl;
-  std::cout << "CPU: Number of matches: " << match_count << std::endl;
+  for (unsigned i = 0; i < pattern_count; ++i) {
+    printf("Pattern '%.*s' has indices: ", pattern_sz, &patterns[i * pattern_sz]);
+    for (unsigned j = 0; j < max_match_count; ++j) {
+      unsigned long match = out[i * max_match_count + j];
+      if (match)
+        printf("%lu ", match);
+    }
+    printf("\n");
+  }
 
   delete[] fileBuf;
   FMIndexFree(index);

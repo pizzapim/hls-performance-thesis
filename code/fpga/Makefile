@@ -1,6 +1,3 @@
-SA_JUMPS ?= 1
-RANK_JUMPS ?= 1
-
 HOSTCODE := host.cpp
 KERNELCODE := fmindex.cpp
 FPGACONFIG := u250.cfg
@@ -18,14 +15,15 @@ ifeq ($(filter $(TARGET),$(TARGETS)),)
 endif
 
 VXXFLAGS := --log_dir $(TARGET) --report_dir $(TARGET) --temp_dir $(TARGET)
-GXXFLAGS := -Wall -g -std=c++11 -I${XILINX_XRT}/include/ -L${XILINX_XRT}/lib/ -lOpenCL -lpthread -lrt -lstdc++ -I.. -DSA_JUMPS=$(SA_JUMPS) -DRANK_JUMPS=$(RANK_JUMPS)
+GXXFLAGS := -Wall -g -std=c++11 -I${XILINX_XRT}/include/ -L${XILINX_XRT}/lib/ -lOpenCL -lpthread -lrt -lstdc++ -I..
 XCLBIN := $(TARGET)/fmindex.xclbin
 
 all: $(TARGET) host emconfig.json $(TARGET)/fmindex.xclbin
 
 run: all
 	test -n "$(FMINDEX)" || (echo "FMINDEX undefined" ; exit 1)
-	cd $(TARGET) && XCL_EMULATION_MODE=$(TARGET) ../host ../$(FMINDEX) ../$(XCLBIN)
+	test -n "$(TESTS)" || (echo "TESTS undefined" ; exit 1)
+	cd $(TARGET) && XCL_EMULATION_MODE=$(TARGET) ../host ../$(FMINDEX) ../$(XCLBIN) ../$(TESTS)
 
 $(TARGET):
 	mkdir $(TARGET)
