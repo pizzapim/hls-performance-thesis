@@ -6,8 +6,9 @@
 #include "util.h"
 
 int main(int argc, char **argv) {
-  if (argc < 6) {
-    printf("Usage: $ %s <TEXTFILE> <FMFILE> <OUTPUTFILE> <TESTCOUNT> <TESTLENGTH>\n",
+  if (argc < 7) {
+    printf("Usage: $ %s <TEXTFILE> <FMFILE> <OUTPUTFILE> <TESTCOUNT> "
+           "<TESTLENGTH> <MAXMATCHES>\n",
            argv[0]);
     return 1;
   }
@@ -39,24 +40,42 @@ int main(int argc, char **argv) {
   char pattern[length + 1];
   pattern[length] = '\0';
 
+  unsigned long match_total = 0;
+  for (int i = 0; i < count; ++i) {
+    // Find the average match count.
+    unsigned long idx = distr(generator);
+    memcpy(pattern, &s[idx], length);
+    ranges_t start, end;
+    FMIndexFindMatchRange(index, pattern, length, &start, &end);
+    match_total += end - start;
+  }
+
+  fprintf(stderr, "Average match count: %lu\n", match_total / count);
+
+  unsigned max_allowed_matches = atoi(argv[6]);
   for (int i = 0; i < count; ++i) {
     // Make sure the pattern does not contain newlines as it would
     //  mess with the formatting of the file.
     // Skews the distributivity a bit, but shouldn't matter really.
     unsigned long idx;
-    int contains_newline;
+    int valid;
+    ranges_t start, end;
+
     do {
       idx = distr(generator);
-      contains_newline = 0;
+      valid = 1;
       for (int i = 0; i < length; ++i)
         if (s[idx + i] == '\n')
-          contains_newline = 1;
-    } while (contains_newline);
+          valid = 0;
+      if (valid) {
+        memcpy(pattern, &s[idx], length);
+        FMIndexFindMatchRange(index, pattern, length, &start, &end);
+        if (end - start > max_allowed_matches)
+          valid = 0;
+      }
+    } while (!valid);
 
     indices[i] = idx;
-    memcpy(pattern, &s[idx], length);
-    ranges_t start, end;
-    FMIndexFindMatchRange(index, pattern, length, &start, &end);
     if (end - start > max_match_count)
       max_match_count = end - start;
   }

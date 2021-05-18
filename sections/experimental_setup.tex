@@ -1,27 +1,46 @@
-\section{Experimental setup} \label{section:experiment_setup}
-We investigate the performance of the FPGA implementation based on two metrics found in literature.
-To evaluate the overall performance, throughput is measured by counting how many patterns can be matched (finding their indices) per second.
-As one of the main benefits of FPGAs is energy efficiency, we also evaluate this by measuring the average energy usage for matching one pattern.
+\section{Experimental setup \& hypothesis} \label{section:experiment_setup_hypo}
 
-As test data, we use several corpora from the Pizza \& Chili corpus collection \cite{ferragina_pizzachili_nodate}, preprocessed on the CPU.
-This collection is often used for text compression and indexing, and features corpora from multiple sources, such as protein sequences, program source codes and DNA sequences \cite{makinen_compressed_2007}.
-For each corpus we also evaluate a few text sizes.
+\subsection{Experimental setup} \label{section:experiment_setup}
 
-As input data, we take an amount of substrings found in the original string that are matched using the preprocessed FM-index.
-Different lengths of the patterns are be investigated.
-The amount of patterns is fixed, as we are interested in the throughput and average energy consumption.
-However, the amount of patterns should be big enough to exploit parallelization on the FPGA.
+We investigate the performance on the CPU and FPGA using two metrics found in literature.
+To evaluate the overall performance, throughput is measured by counting the average amount of patterns matched (finding the corresponding original positions) per second.
+Additionally, to provide a more fair comparison between CPU and FPGA, the throughput is also expressed as the amount of patterns matched per clock cycle.
+As one of the main benefits of FPGAs is energy efficiency, we also evaluate average energy usage for matching one pattern.
 
-For big texts, we will use the technique described in \ref{section:bwt_construction} to reduce the size of the rank matrix and suffix array.
+The string searches are performed on FM-indices which we preprocess on the CPU.
+We use several corpora provided by the Pizza \& Chili corpus collection \cite{ferragina_pizzachili_nodate} to compute the FM-indices.
+This collection is often used for text compression and indexing, and features corpora from a diverse set of sources \cite{makinen_compressed_2007}.
+We use the \textit{dna}, \textit{proteins} and \textit{dblp.xml} corpora for our experiments.
+An explanation for each corpus and the alphabet size is shown in table \ref{table:corpora}.
 
-In terms of hardware we will use the Xilinx U250 Data Center Accelerator Card as the FPGA.
-The CPU is to be determined.
+\begin{table}[H]
+  \begin{tabularx}{\linewidth}{l X l}
+    \hline
+    \textbf{Corpus} & \textbf{Description} & \textbf{$|\Sigma|$} \\ \hline
+    \textit{dna} & DNA sequences provided by Project Gutenberg. The DNA bases are encoded as A, C, G and T, but also contains special characters. & 16 \\ \hline
+    \textit{proteins} & Protein sequences provided by the Swiss-Prot database. The 20 amino acids are encoded as upper-case letters. Also contains special characters. & 27 \\ \hline
+    \textit{dblp.xml} & Bibliographic information on computer science journals in XML format, provided by DBLP. & 97 \\ \hline
+  \end{tabularx}
+  \caption{Description and alphabet size of the three corpora used from the Pizza \& Chili corpus collection.}
+  \label{table:corpora}
+\end{table}
 
-We expect that the FPGA implementation will have a higher throughput, as there is potential for high paralellization.
-We also expect the FPGA implementation to be more energy efficient, as is usually the case.
+To measure throughput, we generate as input for the experiment 7500 random patterns that occur in the text.
+Generating random patterns from the alphabet alone gives too many patterns that have no occurences in the original text, especially for the \textit{dblp.xml} corpus which has a high alphabet size.
+We therefore think taking patterns that actually occur in the original text better reflects a normal string search.
+We experiment with different pattern lengths, namely lengths 4, 6 and 8.
+We chose these lengths because smaller lengths would give way too many matches for corpora with a small alphabet size, while bigger lengths would give almost no matches at all for a large alphabet size.
 
-[TODO: show which corpora we actually use and information about them]
+We also investigate the effect of the size of the corpus on the throughput.
+Therefore, for each corpus, we perform experiments on 10, 15 and 20 MB versions of the corpus.
 
-[TODO: explain comparison]
+Lastly, each experiment is performed five times to limit variability.
 
-[TODO: CPU hardware summary]
+The CPU experiments are performed on an Intel Xeon Gold 6128 processor \cite{noauthor_intel_nodate}.
+This CPU has a base frequency of 3.40 GHz.
+
+\subsection{Hypothesis} \label{section:cpu_hypothesis}
+
+We expect that a higher pattern length will result in a lower throughput, as string searching using the FM-index loops over the characters of the pattern.
+Subsequently, we expect that the size of the corpus has a negligible effect on the throughput.
+Lastly, we hypothesize that corpora with a larger alphabet, i.e. the \textit{dblp.xml} corpus, have a lower throughput, as the data structures are larger which could negatively impact memory performance.

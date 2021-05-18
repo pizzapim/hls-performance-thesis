@@ -1,4 +1,4 @@
-host
+verify
 sw_emu
 hw_emu
 hw
@@ -7,3 +7,5 @@ hw
 emconfig.json
 *.csv
 *run_summary
+vitis_env.sh
+.ipcache

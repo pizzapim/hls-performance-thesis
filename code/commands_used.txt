@@ -1,5 +1,14 @@
 CPU benchmark command:
-python3 benchmark_cpu.py -n 5 -c 50000 -l 4 6 8 -d experiment_data -f dna.150MB proteins.150MB dblp.xml.150MB
+python3 benchmark_cpu.py -n 5 -c 7500 -l 4 6 8 -d experiment_data -f dna.10MB proteins.10MB dblp.xml.10MB dna.15MB proteins.15MB dblp.xml.15MB dna.20MB proteins.20MB dblp.xml.20MB -m 227386
 
 CPU benchmark figure command:
-python3 make_plot.py -c 50000 -l 4 6 8 -d experiment_results -t dna proteins dblp.xml -s 50 100 150
+python3 plot_cpu.py -c 7500 -l 4 6 8 -d cpu_results -t dna proteins dblp.xml -s 10 15 20
+
+FPGA unoptimized benchmark command:
+python3 benchmark_fpga.py -n 5 -c 7500 -m 227386 -l 4 6 8 -d ../experiment_data -f dna.10MB proteins.10MB dblp.xml.10MB dna.15MB proteins.15MB dblp.xml.15MB dna.20MB proteins.20MB dblp.xml.20MB -k unopt -t hw
+
+FPGA benchmark figure command:
+python3 plot_fpga.py -c 7500 -l 4 6 8 -d unopt_results -t dna proteins dblp.xml -s 10 15 20 -k unopt
+
+FPGA speedup figure command:
+python3 plot_speedup.py -c 7500 -l 4 6 8 -f unopt_results -d ../cpu_results -t dna proteins dblp.xml -s 10 15 20 -k unopt --save

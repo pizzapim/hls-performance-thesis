@@ -49,7 +49,7 @@ int randomrange(int min, int max) {
 }
 
 int LoadTestData(char *filename, char **tests, unsigned *pattern_count,
-                 unsigned *pattern_sz, unsigned *max_match_count) {
+                 unsigned *pattern_sz, unsigned *max_match_count, int aligned) {
   FILE *fp;
   char *line = NULL;
   size_t len = 0;
@@ -73,8 +73,8 @@ int LoadTestData(char *filename, char **tests, unsigned *pattern_count,
     return 0;
   *pattern_sz = atoi(line);
 
-  *tests = (char *)calloc(*pattern_count * *pattern_sz, sizeof(char));
-  if (!*tests)
+  if (!MaybeMallocAligned((void **)tests,
+                          *pattern_count * *pattern_sz * sizeof(char), aligned))
     return 0;
 
   // Read each test on a seperate line.
@@ -88,4 +88,11 @@ int LoadTestData(char *filename, char **tests, unsigned *pattern_count,
   free(line);
 
   return 1;
+}
+
+int MaybeMallocAligned(void **mem, size_t sz, int aligned) {
+  if (aligned)
+    return posix_memalign(mem, 4096, sz) == 0;
+  else
+    return (*mem = malloc(sz)) != NULL;
 }

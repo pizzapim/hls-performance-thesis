@@ -280,13 +280,6 @@ int FMIndexDumpToFile(fm_index *index, char *filename) {
   return 1;
 }
 
-static int MaybeMallocAligned(void **mem, size_t sz, int aligned) {
-  if (aligned)
-    return posix_memalign(mem, 4096, sz) == 0;
-  else
-    return (*mem = malloc(sz)) != NULL;
-}
-
 fm_index *FMIndexReadFromFile(char *filename, int aligned) {
   FILE *f = fopen(filename, "r");
   if (!f)

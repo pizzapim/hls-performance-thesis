@@ -24,7 +24,7 @@ int main(int argc, char **argv) {
   char *patterns;
 
   if (!(LoadTestData(argv[2], &patterns, &pattern_count, &pattern_sz,
-                     &max_match_count))) {
+                     &max_match_count, 0))) {
     fprintf(stderr, "Could not read test data file.\n");
     return 1;
   }
@@ -41,7 +41,8 @@ int main(int argc, char **argv) {
   for (unsigned i = 0; i < pattern_count; ++i) {
     ranges_t start, end;
     start_time = (float)clock() / CLOCKS_PER_SEC;
-    FMIndexFindMatchRange(index, &patterns[i * pattern_sz], pattern_sz, &start, &end);
+    FMIndexFindMatchRange(index, &patterns[i * pattern_sz], pattern_sz, &start,
+                          &end);
     end_time = (float)clock() / CLOCKS_PER_SEC;
     range_time += end_time - start_time;
 
