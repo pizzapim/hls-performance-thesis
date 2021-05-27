@@ -184,43 +184,29 @@ It can be easily checked that this is correct.
 
 \section{Related Work} \label{section:related_work}
 
-In this section, we summarize related work about high-level synthesis using OpenCL and string-search algorithms.
+In this section, we summarize two case studies on performance of high-level models (OpenCL in particular).
 
-\subsection{OpenCL for high-level synthesis}
+\subsection*{Optimizing OpenCL Code for Performance on FPGA: k-Means Case Study With Integer Data Sets \cite{zohouri_evaluating_2016}}
 
-The use of OpenCL in conjunction with FPGAs goes as far back as \citeyear{lin_openrcl_2010}.
-OpenRCL is a system that enables executing code on an FPGA, and supports parallelization and multithreading through the OpenCL API.
-However, the OpenCL code is not synthesized into hardware, but rather runs on computing cores on the FPGA \cite{lin_openrcl_2010}.
-The SOpenCL system is the first synthesis tool capable of converting OpenCL C code into synthesizable HDL \cite{owaida_synthesis_2011}.
-In the industry, Intel has developed its FPGA SDK for OpenCL for its FPGA hardware, while Xilinx provides its Vitis platform (formerly SDAccel) to program Xilinx FPGAs \cite{noauthor_intel_nodate-1, noauthor_vitis_nodate}.
-
-\subsection{Optimizing OpenCL}
-
-Case studies have shown that OpenCL HLS can outperform CPUs for certain algorithms.
-Additionally, OpenCL HLS kernels are often more power-efficient than their CPU counterparts.
-
-\citeauthor{zohouri_evaluating_2016} present three optimization techniques to optimize the performance of OpenCL HLS \cite{zohouri_evaluating_2016}.
+In this work the authors present three programming techniques to optimize OpenCL HLS performance.
+Using these techniques, they further show that FPGAs can outperform CPUs for certain algorithms.
 The first technique they show is explicit vectorization of loops in the algorithm.
 This replaces a loop with operations that can be parallelized.
 Secondly, the authors show an NDRange approach where a task is split into independent parts that are executed by separate kernel.
 Finally, they show that data transfer between the host system and the kernels can sometimes be done in bursts depending on the amount of memory on-board, to limit the number of transfers while transferring as much data as possible at once.
-However, the data-transfer technique could result in non-portable code, as the technique is optimized for a certain FPGA architecture.
-The paper shows how these optimizations lead to 1.5x speedup for four of twelve experiments conducted.
+However, the data-transfer technique could result in non-portable code.
+
+The paper shows how these optimizations lead to 1.5x speedup for four of twelf experiments conducted.
 Moreover, no matter what optimization applied, using the FPGA to offload the algorithm results in 60\% to 80\% less energy consumption.
 
-\citeauthor{paulino_optimizing_2020} also present a number of techniques to optimize OpenCL HLS performance, and compare its performance to both CPUs and GPUs \cite{paulino_optimizing_2020}.
-Firstly, using OpenCL pragmas, one can indicate that a kernel can be replicated as separate pipelines to exploit data parallelism.
-Other optimizations are loop unrolling and using shift registers when performing calculations on floating-point numbers.
+\subsection*{Evaluating and Optimizing OpenCL Kernels for High Performance Computing with FPGAs \cite{paulino_optimizing_2020}}
+
+This paper presents several programming techniques to improve the efficiency of running OpenCL benchmarks on FPGAs.
+Firstly, using OpenCL annotations, one can indicate that a kernel can be replicated as separate pipelines to exploit data parallelism.
+Other optimizations are loop unrolling and using a shift register when performing calculations on floating-point numbers.
 Finally, for algorithms that exhibit a structured grid computation pattern, the advanced sliding window technique can be used.
 The authors investigate the performance benefits of these techniques using benchmarks from the Rodinia suite.
 Experimental results from these benchmarks show that FPGAs are slightly faster than CPUs, but not better than GPUs.
 The FPGAs are however up to 3.4x more energy efficient than GPUs at executing the benchmarks.
 
-\subsection{Synthesizing FM-index}
-
-The implementation of the FM-index in hardware has been studied by \citeauthor{fernandez_string_2011} in \citeyear{fernandez_string_2011} \cite{fernandez_string_2011}.
-In that study, the FM-index was designed using a hardware description language.
-The authors were able to reach up to 196 times speedup, compared to a brute-force CPU implementation.
-\citeauthor{ullah_implementation_2020} researched the synthesis of FM-index using HLS on a multi-FPGA system \cite{ullah_implementation_2020}.
-On a single board implementation, the implementation was 10 times faster than on a CPU.
-Using multiple FPGAs connected in a ring network, throughput can be scaled and increased.
+[TODO: also include paper about FM-index acceleration on FPGAs]

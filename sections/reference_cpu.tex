@@ -1,114 +1,26 @@
-In this chapter, we present our reference CPU application.
-We also present an experimental setup, which we use the performance of the FM-index implementations.
+In this chapter, we present our reference CPU application, as well as an experimental setup for performance analysis.
 
-\section{Reference implementation} \label{section:reference_cpu}
+\section{Reference implementation} \label{section:ref_impl}
 
 To analyze the performance of an FPGA implementation, we have programmed a CPU-based reference implementation in the C language.
-We have chosen this language for its performance and for easy portability to an FPGA kernel written in C, C++ or OpenCL.
-As will be explained in section \ref{section:experiment_setup}, we will focus on analyzing the performance of string-matching, and not the construction of the FM-index.
+We have chosen this language for its performance and for easy portability to an FPGA kernel in C, C++ or OpenCL.
+As will be explained in section \ref{section:experiment_setup}, we will analyze the performance of string-matching.
 Therefore we can precalculate all auxiliary data structures that were previously explained in section \ref{section:background_stringmatching}.
-
-\subsection{Interface} \label{section:cpu_interface}
-
-The data structures comprising the FM-index are implemented as a C struct shown in listing \ref{listing:fmindex_struct}.
-The suffix array is henceforth abbreviated as \cinline{sa} in code listings.
-
-\begin{listing}[H]
-\begin{minted}{c}
-typedef unsigned ranges_t;
-typedef unsigned ranks_t;
-typedef unsigned sa_t;
-
-typedef struct fm_index {
-  char *bwt;
-  size_t bwt_sz;
-  char *alphabet;
-  size_t alphabet_sz;
-  ranks_t *ranks;
-  sa_t *sa;
-  ranges_t *ranges;
-} fm_index;
-\end{minted}
-\caption{The C struct for the FM-index. The \cinline{bwt}, \cinline{ranks} and \cinline{sa} data structures correspond to the Burrows-Wheeler transform, rank matrix and suffix array respectively. The data structure \cinline{ranges} is used to lookup a character in the Burrows-Wheeler matrix.}
-\label{listing:fmindex_struct}
-\end{listing}
-
-The exposed functions are presented in listing \ref{listing:fmindex_functions}.
-The \cinline{FMIndexConstruct} function constructs the FM-index from the given text, and \cinline{FMIndexFree} frees the FM-index and all underlying data structures.
-The functions \cinline{FMIndexDumpToFile} and \cinline{FMIndexReadFromFile} can be used to save and read an FM-index to and from a file. 
-The flag \cinline{aligned} specifies whether to allocate memory page-aligned, which is useful for communication with the FPGA in chapter \ref{chapter:fpga}.
-Finally, the \cinline{FMIndexFindMatchRange} and \cinline{FMIndexFindRangeIndices} functions are used to find the indices of a given pattern within a text, as explained in section \ref{section:background_fmindex}.
-\cinline{FMIndexFindMatchRange} finds the start and end of the range of matches for a pattern, and saves these in \cinline{start} and \cinline{end} respectively.
-\cinline{FMIndexFindRangeIndices} finds all indices using the earlier acquired range, and saves them in \cinline{match_indices}.
-
-\begin{listing}[H]
-\begin{minted}{c}
-fm_index *FMIndexConstruct(char *s);
-void FMIndexFree(fm_index *fm);
-
-int FMIndexDumpToFile(fm_index *fm, char *filename);
-fm_index *FMIndexReadFromFile(char *filename, int aligned);
-
-void FMIndexFindMatchRange(fm_index *fm, char *pattern, size_t pattern_sz,
-                           ranges_t *start, ranges_t *end);
-void FMIndexFindRangeIndices(fm_index *fm, ranges_t start, ranges_t end,
-                             unsigned long **match_indices);
-\end{minted}
-\caption{The FM-index C functions exposed by the interface.}
-\label{listing:fmindex_functions}
-\end{listing}
-
-\subsection{String searching} \label{section:string_searching}
-
-The two functions from section \ref{section:cpu_interface} to perform string searching using the FM-index are shown in full in listing \ref{listing:string_searching}.
-The \cinline{FMIndexFindMatchRange} function closely follows the pseudocode in listing \ref{listing:bw_occurences}.
-The \cinline{FMIndexFindRangeIndices} uses the found range of matches, and performs a simple lookup in the suffix array to find the original indices.
-
-\begin{listing}[H]
-\begin{minted}{c}
-void FMIndexFindMatchRange(fm_index *fm, char *pattern, size_t pattern_sz,
-                           ranges_t *start, ranges_t *end) {
-  int p_idx = pattern_sz - 1;
-  char c = pattern[p_idx];
-
-  *start = fm->ranges[2 * string_index(fm->alphabet, c)];
-  *end = fm->ranges[2 * string_index(fm->alphabet, c) + 1];
-
-  p_idx -= 1;
-  while (p_idx >= 0 && *end > 1) {
-    c = pattern[p_idx];
-    ranges_t range_start = fm->ranges[2 * string_index(fm->alphabet, c)];
-    int alphabet_idx = string_index(fm->alphabet, c);
-    *start =
-        range_start + fm->ranks[fm->alphabet_sz * (*start - 1) + alphabet_idx];
-    *end = range_start + fm->ranks[fm->alphabet_sz * (*end - 1) + alphabet_idx];
-    p_idx -= 1;
-  }
-}
-
-void FMIndexFindRangeIndices(fm_index *fm, ranges_t start, ranges_t end,
-                             unsigned long **match_indices) {
-  for (unsigned long i = 0; i < end - start; ++i)
-    (*match_indices)[i] = fm->sa[start + i];
-}
-\end{minted}
-\caption{The full implementation of string searching using the FM-index.}
-\label{listing:string_searching}
-\end{listing}
 
 \subsection{Burrows-Wheeler transform construction} \label{section:bwt_construction}
 
-We previously explained in section \ref{section:background_bwt} that, in order to obtain $\Tbw$, we list all rotations of the text and then lexicographically sort them.
-This would unfortunately lead to a space complexity of $O(n^2)$ which is infeasible for large data sets.
+The method to obtain the Burrows-Wheeler transform $\Tbw$ from a text can however not be used in practice.
+We previously explained in section \ref{section:background_bwt} that, to obtain $\Tbw$, we list all rotations of the text and then lexicographically sort them.
+This would unfortunately load to a space complexity of $O(n^2)$ which is infeasible for large data sets.
 To avoid this issue, we can derive $\Tbw$ from the suffix array of the text \cite{ullah_implementation_2020}.
 The suffix array is essentially a Burrows-Wheeler transform, but holds indices instead of characters.
 Deriving $\Tbw$ is therefore as easy as indexing the text for each index in the suffix array.
 
 The C code for obtaining the suffix array from a text is shown in listing \ref{listing:construct_sa}.
 First we simply list all indices of the text.
-Then we use quicksort to sort the indices: for each pair of indices, the strings starting from these positions are lexicographically compared.
+Then we use quicksort to sort the indices: for each pair of indices, the strings starting from these positions are lexicographically compaired.
 
-\begin{listing}[H]
+\begin{listing}[ht]
 \begin{minted}{c}
 sa_t *ConstructSuffixArray(char *text, size_t text_sz) {
   sa_t *suffix_array = calloc(text_sz + 1, sizeof(sa_t));
@@ -121,44 +33,32 @@ sa_t *ConstructSuffixArray(char *text, size_t text_sz) {
   return suffix_array;
 }
 \end{minted}
-\caption{Generating the suffix array for a text. The auxiliary function \texttt{CompareSuffixArray} lexicographically compares two suffixes, taking the sentinel character \texttt{\$} into account which is always sorted first.}
+\caption{Generating the suffix array for a text.}
 \label{listing:construct_sa}
 \end{listing}
 
-\input{experimental_setup}
+\subsection{Space reduction} \label{section:space_reduction}
 
-\section{Results} \label{section:results_cpu}
+Another concern is the storage usage of the resulting index.
+Consider an ASCII text file of 3 gigabyte with alphabet size 27 (meaning 27 distinct characters).
+The reference implementation uses an \mintinline{c}{unsigned int} to store the numbers in the rank matrix and the suffix array, which takes up two bytes in the testing environment.
+The resulting storage usage of the index is divided as follows:
 
-Figure \ref{fig:throughput_cpu} shows the average throughput of the three corpora with different pattern length and corpus sizes.
-The top throughputs reach more than 400 thousand patterns matches per second, while we also see some in the lower ten thousands.
+\begin{itemize}
+  \item \textbf{Burrows-Wheeler transform}: \SI{3}{GB}
+  \item \textbf{Rank matrix}: $2 \cdot 27 \cdot \SI{3}{GB} = \SI{162}{GB}$
+  \item \textbf{Suffix array}: $2 \cdot \SI{3}{GB} = \SI{6}{GB}$
+  \item \textbf{Resulting storage usage}: $3 + 162 + \SI{6}{GB} = \SI{171}{GB}$
+\end{itemize}
 
-We see that, contrary to the hypothesis, a longer pattern generally leads to higher throughput.
-To explain this fact, we plot how many occurences a pattern has in the original text on average in figure \ref{fig:match_count_cpu}.
-Not surprisingly we see that longer patterns have less occurences than shorter ones.
-For shorter patterns, we therefore have to look up way more positions in the suffix array.
-The memory lookups explain why longer patterns in figure \ref{fig:throughput_cpu} are faster to search for.
+It is clear that that the resulting \SI{171}{GB} of storage usage is unacceptable when it is loaded into memory.
+Therefore, we should reduce the storage usage of the rank matrix and suffix array.
+Our reference implementation only stores every $n$ rows of the rank matrix and suffix array \cite{fernandez_string_2011,langmead_introduction_nodate}.
+The rank matrix and suffix array can then be reduced as needed.
+At run time, the missing rows can be calculated on the fly, which can be done in constant time.
 
-When we look at the effect of the corpus size, we see that for the \textit{dna} and \textit{dblp.xml} corpora, a bigger text leads to lower throughputs.
-However, the lower throughput does not seem to be linear to the corpus size.
-We think the lower throughput could be the result of memory caching, as random accesses in the data FM-index data structures are more likely to result in page faults.
+[TODO: explain how we reduce the number of rows?]
 
-\begin{figure}[H]
-\centering
-\includegraphics[width=1.0\textwidth]{figures/throughput_cpu.png}
-\caption{Average throughput over 5 runs for the CPU reference application. The \textit{dna}, \textit{proteins} and \textit{dblp.xml} corpora are showns for different pattern lengths and corpus sizes. Note that the y-axis has a different scale for each figure.}
-\label{fig:throughput_cpu}
-\end{figure}
+\include{experimental_setup}
 
-We also observe that the \textit{proteins} corpus has a comparable throughput independent of corpus size or pattern length.
-If we again look at figure \ref{fig:match_count_cpu}, we see that more all pattern lengths the average amount of occurences of a pattern is very low compared to the other corpora.
-This is seemingly a property of this corpus: the text is apparantly very random and any pattern does not occur very often.
-
-Lastly, we do indeed see that the \textit{dblp.xml} corpus with the high alpabhet size has a throughput almost 7x lower than the other two corpora.
-Whether this is the result of worse caching, is not known.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=1.0\textwidth]{figures/match_count_cpu.png}
-\caption{Average amount of matches per pattern over 5 runs for the \textit{dna}, \textit{proteins} and \textit{dblp.xml} corpora for different pattern lengths and corpus sizes. Note that the y-axis has a different scale for each figure.}
-\label{fig:match_count_cpu}
-\end{figure}
+\section{Results}
