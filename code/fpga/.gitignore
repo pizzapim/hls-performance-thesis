@@ -1,0 +1,13 @@
+verify
+sw_emu
+hw_emu
+hw
+.Xil
+.run
+emconfig.json
+vitis_env.sh
+.ipcache
+example_output
+test.txt
+*.jou
+*.str
